@@ -1,0 +1,8 @@
+site_name: LiveEdit Test Site
+plugins:
+  - liveedit
+
+nav:
+  - Home: index.md
+  - Guide: guide.md
+  - About: about.md
