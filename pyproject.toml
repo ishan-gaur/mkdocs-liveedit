@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mkdocs-liveedit"
+version = "0.1.0"
+description = "MkDocs plugin that adds inline editing to mkdocs serve"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = [
+    "mkdocs>=1.5",
+    "ruamel.yaml>=0.17",
+]
+
+[project.entry-points."mkdocs.plugins"]
+liveedit = "mkdocs_liveedit.plugin:LiveEditPlugin"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mkdocs_liveedit"]
+
+[tool.ruff]
+line-length = 120
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4",
+]

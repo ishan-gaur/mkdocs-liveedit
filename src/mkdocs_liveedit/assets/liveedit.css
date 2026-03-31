@@ -1,0 +1,212 @@
+/* mkdocs-liveedit styles — only active during mkdocs serve */
+
+/* Hoverable block highlight */
+[data-liveedit-block] {
+    position: relative;
+    transition: outline 0.15s ease, background-color 0.15s ease;
+    cursor: default;
+}
+
+[data-liveedit-block]:hover {
+    outline: 2px dashed rgba(66, 133, 244, 0.4);
+    outline-offset: 4px;
+    background-color: rgba(66, 133, 244, 0.03);
+}
+
+/* Edit icon (pencil) — appears on hover */
+.liveedit-icon {
+    position: absolute;
+    top: 2px;
+    right: -28px;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: rgba(66, 133, 244, 0.1);
+    color: #4285f4;
+    font-size: 14px;
+    z-index: 100;
+    user-select: none;
+}
+
+[data-liveedit-block]:hover .liveedit-icon {
+    opacity: 1;
+}
+
+.liveedit-icon:hover {
+    background: rgba(66, 133, 244, 0.2);
+}
+
+/* Overlay container */
+.liveedit-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: #fff;
+    border: 2px solid #4285f4;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .liveedit-overlay {
+        background: #1e1e1e;
+        border-color: #5c9aff;
+    }
+    .liveedit-toolbar {
+        background: #2d2d2d !important;
+        border-top-color: #444 !important;
+    }
+    .liveedit-textarea {
+        background: #1e1e1e !important;
+        color: #d4d4d4 !important;
+    }
+}
+
+/* Textarea */
+.liveedit-textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 12px 14px;
+    border: none;
+    outline: none;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+    box-sizing: border-box;
+    border-radius: 8px 8px 0 0;
+    background: #fafafa;
+    color: #333;
+    tab-size: 4;
+}
+
+.liveedit-textarea:focus {
+    background: #fff;
+}
+
+/* Toolbar (save/cancel) */
+.liveedit-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border-top: 1px solid #e0e0e0;
+    border-radius: 0 0 8px 8px;
+}
+
+.liveedit-toolbar button {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s ease;
+}
+
+.liveedit-toolbar .liveedit-save {
+    background: #4285f4;
+    color: #fff;
+}
+
+.liveedit-toolbar .liveedit-save:hover {
+    background: #3367d6;
+}
+
+.liveedit-toolbar .liveedit-cancel {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.liveedit-toolbar .liveedit-cancel:hover {
+    background: #d0d0d0;
+}
+
+/* Keyboard shortcut hint */
+.liveedit-hint {
+    font-size: 11px;
+    color: #999;
+    align-self: center;
+    margin-right: auto;
+    padding-left: 4px;
+}
+
+/* Drag handles for sidebar nav */
+.liveedit-drag-handle {
+    cursor: grab;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    margin-right: 4px;
+    color: #999;
+    font-size: 12px;
+    user-select: none;
+}
+
+.md-nav__item:hover .liveedit-drag-handle {
+    opacity: 0.6;
+}
+
+.liveedit-drag-handle:hover {
+    opacity: 1 !important;
+}
+
+.liveedit-dragging {
+    opacity: 0.5;
+}
+
+.liveedit-drop-target {
+    border-top: 2px solid #4285f4;
+}
+
+/* Status indicator */
+.liveedit-status {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 10000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.liveedit-status.visible {
+    opacity: 1;
+}
+
+.liveedit-status.success {
+    background: #e6f4ea;
+    color: #1e8e3e;
+    border: 1px solid #ceead6;
+}
+
+.liveedit-status.error {
+    background: #fce8e6;
+    color: #d93025;
+    border: 1px solid #f5c6cb;
+}
+
+/* Hide original block content when editing */
+[data-liveedit-block].liveedit-editing > *:not(.liveedit-overlay):not(.liveedit-icon) {
+    visibility: hidden;
+}
+
+[data-liveedit-block].liveedit-editing {
+    min-height: 150px;
+}
