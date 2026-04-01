@@ -25,6 +25,7 @@ class LiveEditAPI:
 
     def __call__(self, environ: dict, start_response: Callable) -> Any:
         path = environ.get("PATH_INFO", "")
+        log.debug(f"LiveEditAPI: intercepting {environ.get('REQUEST_METHOD')} {path}")
 
         if path == "/liveedit/save":
             return self._handle_save(environ, start_response)
@@ -33,7 +34,9 @@ class LiveEditAPI:
         elif path == "/liveedit/nav":
             return self._handle_nav(environ, start_response)
 
-        return self.app(environ, start_response)
+        if self.app is not None:
+            return self.app(environ, start_response)
+        return self._error_response(start_response, "Not found", "404 Not Found")
 
     def _read_json_body(self, environ: dict) -> dict:
         content_length = int(environ.get("CONTENT_LENGTH", 0))

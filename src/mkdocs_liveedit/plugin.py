@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 from mkdocs.plugins import BasePlugin
 
-from .api import LiveEditAPI
 from .sourcemap import Block, count_frontmatter_offset, parse_blocks
 
 if TYPE_CHECKING:
@@ -123,6 +122,38 @@ def _load_asset(name: str) -> str:
     return (assets / name).read_text(encoding="utf-8")
 
 
+def _patch_livereload_server(docs_dir: str, config_file: str):
+    """Monkey-patch LiveReloadServer._serve_request to intercept /liveedit/* API routes.
+
+    We patch _serve_request (the inner method called by serve_request) at the
+    class level. This works because serve_request calls self._serve_request()
+    at request time, so the class-level patch is picked up.
+
+    We can't patch serve_request itself because __init__ already stored the
+    original bound method via set_app(). And we can't rely on on_serve because
+    the MkDocs CLI passes livereload=False due to a Click flag interaction bug.
+    """
+    from mkdocs.livereload import LiveReloadServer
+
+    if getattr(LiveReloadServer, "_liveedit_patched", False):
+        return
+
+    from .api import LiveEditAPI
+
+    original_serve_request = LiveReloadServer._serve_request
+    api = LiveEditAPI(None, docs_dir, config_file)
+
+    def patched_serve_request(self, environ, start_response):
+        path = environ.get("PATH_INFO", "")
+        if path.startswith("/liveedit/"):
+            return api(environ, start_response)
+        return original_serve_request(self, environ, start_response)
+
+    LiveReloadServer._serve_request = patched_serve_request
+    LiveReloadServer._liveedit_patched = True
+    log.info("LiveEdit: patched LiveReloadServer for /liveedit/* API routes")
+
+
 class LiveEditPlugin(BasePlugin):
     """MkDocs plugin that enables inline editing during serve."""
 
@@ -132,6 +163,19 @@ class LiveEditPlugin(BasePlugin):
 
     def on_startup(self, *, command: str, dirty: bool) -> None:
         self._serve_mode = command == "serve"
+
+    def on_config(self, config: MkDocsConfig) -> MkDocsConfig:
+        if not self._serve_mode:
+            return config
+
+        # Patch the LiveReloadServer class to intercept /liveedit/* routes.
+        # Done in on_config (runs before the server is created) so the patch
+        # is in place regardless of the livereload flag.
+        docs_dir = config["docs_dir"]
+        config_file = config.config_file_path or "mkdocs.yml"
+        _patch_livereload_server(docs_dir, config_file)
+
+        return config
 
     def on_page_markdown(self, markdown: str, *, page: Page, config: MkDocsConfig, files) -> str:
         if not self._serve_mode:
@@ -181,20 +225,3 @@ class LiveEditPlugin(BasePlugin):
             output += injection
 
         return output
-
-    def on_serve(self, server, *, config: MkDocsConfig, builder):
-        if not self._serve_mode:
-            return server
-
-        docs_dir = config["docs_dir"]
-        config_file = config.config_file_path or "mkdocs.yml"
-
-        # Wrap the livereload server's WSGI application with our API middleware
-        if hasattr(server, "application"):
-            server.application = LiveEditAPI(server.application, docs_dir, config_file)
-        elif hasattr(server, "app"):
-            server.app = LiveEditAPI(server.app, docs_dir, config_file)
-        else:
-            log.warning("LiveEdit: could not wrap server WSGI app — API routes won't work")
-
-        return server
