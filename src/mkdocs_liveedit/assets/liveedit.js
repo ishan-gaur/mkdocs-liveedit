@@ -186,7 +186,11 @@
         await saveBlock(file, startLine, endLine, newContent);
         showStatus("Saved! Rebuilding...", "success");
         closeOverlay();
-        // Livereload will handle the page refresh
+        // Reload after a short delay to let the rebuild finish.
+        // The server triggers an async rebuild on save; we wait for it.
+        setTimeout(function () {
+          window.location.reload();
+        }, 1500);
       } catch (e) {
         showStatus("Save failed: " + e.message, "error");
         saveBtn.disabled = false;

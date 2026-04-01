@@ -22,6 +22,7 @@ class LiveEditAPI:
         self.app = app
         self.docs_dir = os.path.realpath(docs_dir)
         self.config_file = config_file
+        self.server = None  # Set per-request by the _serve_request patch
 
     def __call__(self, environ: dict, start_response: Callable) -> Any:
         path = environ.get("PATH_INFO", "")
@@ -56,6 +57,33 @@ class LiveEditAPI:
 
     def _error_response(self, start_response: Callable, msg: str, status: str = "400 Bad Request") -> list[bytes]:
         return self._json_response(start_response, {"error": msg}, status)
+
+    def _trigger_rebuild(self):
+        """Trigger a site rebuild on the LiveReloadServer after a file change."""
+        server = self.server
+        if server is None:
+            return
+        try:
+            import threading
+
+            def rebuild():
+                try:
+                    log.info("LiveEdit: triggering rebuild...")
+                    server.builder()
+                    # Update the epoch so livereload-connected browsers refresh.
+                    # If livereload JS isn't active, the frontend JS does a manual reload.
+                    import time
+
+                    epoch = time.monotonic_ns()
+                    with server._epoch_cond:
+                        server._visible_epoch = server._wanted_epoch = epoch
+                        server._epoch_cond.notify_all()
+                except Exception as e:
+                    log.error(f"LiveEdit rebuild error: {e}")
+
+            threading.Thread(target=rebuild, daemon=True).start()
+        except Exception as e:
+            log.error(f"LiveEdit: failed to trigger rebuild: {e}")
 
     def _validate_file_path(self, file_path: str) -> str | None:
         """Resolve file path and validate it's under docs_dir. Returns resolved path or None."""
@@ -113,6 +141,7 @@ class LiveEditAPI:
                 f.writelines(lines)
 
             log.info(f"LiveEdit: saved {file_path} lines {start_line}-{end_line}")
+            self._trigger_rebuild()
             return self._json_response(start_response, {"ok": True})
 
         except Exception as e:
@@ -175,6 +204,7 @@ class LiveEditAPI:
                 yaml.dump(config, f)
 
             log.info("LiveEdit: updated nav in mkdocs.yml")
+            self._trigger_rebuild()
             return self._json_response(start_response, {"ok": True})
 
         except Exception as e:

@@ -146,6 +146,8 @@ def _patch_livereload_server(docs_dir: str, config_file: str):
     def patched_serve_request(self, environ, start_response):
         path = environ.get("PATH_INFO", "")
         if path.startswith("/liveedit/"):
+            # Give the API access to the server so it can trigger rebuilds
+            api.server = self
             return api(environ, start_response)
         return original_serve_request(self, environ, start_response)
 
