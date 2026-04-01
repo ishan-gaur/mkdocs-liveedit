@@ -1,3 +1,5 @@
+## **WARNING** This plugin is purely vibecoded!!!
+
 # mkdocs-liveedit
 
 An MkDocs plugin that adds inline editing to `mkdocs serve`. Double-click any content block to edit its raw markdown in a floating textarea, save, and the page rebuilds automatically.
