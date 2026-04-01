@@ -98,6 +98,87 @@ class TestParseBlocks:
         assert blocks[0].content == "Block 1"
         assert blocks[1].content == "Block 2"
 
+    def test_tabbed_content_merged(self):
+        """pymdownx tabbed sets are merged into a single block."""
+        md = (
+            "## Install\n"
+            "\n"
+            '=== "macOS"\n'
+            "\n"
+            "    ```bash\n"
+            "    brew install foo\n"
+            "    ```\n"
+            "\n"
+            '=== "Windows"\n'
+            "\n"
+            "    ```powershell\n"
+            "    choco install foo\n"
+            "    ```\n"
+            "\n"
+            "After the tabs."
+        )
+        blocks = parse_blocks(md)
+        assert len(blocks) == 3
+        assert blocks[0] == Block(start_line=1, end_line=1, content="## Install")
+        # The entire tab set is one block, content includes internal blank lines
+        assert blocks[1].start_line == 3
+        assert blocks[1].end_line == 13
+        assert '=== "macOS"' in blocks[1].content
+        assert '=== "Windows"' in blocks[1].content
+        assert blocks[2] == Block(start_line=15, end_line=15, content="After the tabs.")
+
+    def test_tabbed_content_at_end_of_doc(self):
+        """Tab set at end of document (no trailing content) is still merged."""
+        md = 'Intro\n\n=== "A"\n\n    Content A\n\n=== "B"\n\n    Content B'
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].content == "Intro"
+        assert blocks[1].start_line == 3
+        assert blocks[1].end_line == 9
+
+    def test_multiple_tab_sets(self):
+        """Two separate tab sets produce two separate merged blocks."""
+        md = '=== "X"\n\n    X content\n\nMiddle paragraph\n\n=== "Y"\n\n    Y content'
+        blocks = parse_blocks(md)
+        assert len(blocks) == 3
+        assert blocks[0].start_line == 1
+        assert blocks[0].end_line == 3
+        assert blocks[1].content == "Middle paragraph"
+        assert blocks[2].start_line == 7
+        assert blocks[2].end_line == 9
+
+    def test_single_tab_no_merge(self):
+        """A lone === header with no subsequent indented content is still one block."""
+        md = '=== "Only"\n\nRegular paragraph'
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].content == '=== "Only"'
+        assert blocks[1].content == "Regular paragraph"
+
+    def test_tabbed_with_fenced_code_inside(self):
+        """Fenced code blocks inside tabs don't break the merge."""
+        md = (
+            '=== "Tab 1"\n'
+            "\n"
+            "    ```python\n"
+            "    def foo():\n"
+            "        pass\n"
+            "\n"
+            "        return 42\n"
+            "    ```\n"
+            "\n"
+            '=== "Tab 2"\n'
+            "\n"
+            "    plain text\n"
+            "\n"
+            "Done"
+        )
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].start_line == 1
+        assert blocks[0].end_line == 12
+        assert blocks[1].content == "Done"
+
 
 class TestFrontmatterOffset:
     def test_no_frontmatter(self):

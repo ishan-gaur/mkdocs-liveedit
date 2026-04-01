@@ -161,13 +161,15 @@ class LiveEditPlugin(BasePlugin):
 
     def __init__(self):
         super().__init__()
-        self._serve_mode = False
+        self._active = False
 
     def on_startup(self, *, command: str, dirty: bool) -> None:
-        self._serve_mode = command == "serve"
+        # Only activate during dirty serve — dirty builds only rebuild changed
+        # pages, making the edit-save-rebuild cycle fast.  Use: mkdocs serve --dirty
+        self._active = command == "serve" and dirty
 
     def on_config(self, config: MkDocsConfig) -> MkDocsConfig:
-        if not self._serve_mode:
+        if not self._active:
             return config
 
         # Patch the LiveReloadServer class to intercept /liveedit/* routes.
@@ -180,7 +182,7 @@ class LiveEditPlugin(BasePlugin):
         return config
 
     def on_page_markdown(self, markdown: str, *, page: Page, config: MkDocsConfig, files) -> str:
-        if not self._serve_mode:
+        if not self._active:
             return markdown
 
         blocks = parse_blocks(markdown)
@@ -198,7 +200,7 @@ class LiveEditPlugin(BasePlugin):
         return markdown
 
     def on_page_content(self, html: str, *, page: Page, config: MkDocsConfig, files) -> str:
-        if not self._serve_mode:
+        if not self._active:
             return html
 
         blocks: list[Block] = getattr(page, "liveedit_blocks", [])
@@ -212,7 +214,7 @@ class LiveEditPlugin(BasePlugin):
         return annotator.feed_and_annotate(html)
 
     def on_post_page(self, output: str, *, page: Page, config: MkDocsConfig) -> str:
-        if not self._serve_mode:
+        if not self._active:
             return output
 
         css = _load_asset("liveedit.css")

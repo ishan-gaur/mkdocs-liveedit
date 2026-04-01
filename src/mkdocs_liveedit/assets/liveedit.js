@@ -15,7 +15,7 @@
 
   // ── Helpers ──────────────────────────────────────────────
 
-  function showStatus(message, type) {
+  function showStatus(message, type, persistent) {
     let el = document.querySelector(".liveedit-status");
     if (!el) {
       el = document.createElement("div");
@@ -25,9 +25,11 @@
     el.textContent = message;
     el.className = "liveedit-status visible " + type;
     clearTimeout(el._timeout);
-    el._timeout = setTimeout(function () {
-      el.classList.remove("visible");
-    }, 3000);
+    if (!persistent) {
+      el._timeout = setTimeout(function () {
+        el.classList.remove("visible");
+      }, 3000);
+    }
   }
 
   async function fetchSource(file, start, end) {
@@ -189,13 +191,10 @@
 
       try {
         await saveBlock(file, startLine, endLine, newContent);
-        showStatus("Saved! Rebuilding...", "success");
+        showStatus("⟳ Rebuilding…", "rebuilding", true);
         closeOverlay();
-        // Reload after a short delay to let the rebuild finish.
-        // The server triggers an async rebuild on save; we wait for it.
-        setTimeout(function () {
-          window.location.reload();
-        }, 1500);
+        // Livereload (injected by MkDocs) polls the server and reloads
+        // the page when the build finishes — no manual reload needed.
       } catch (e) {
         showStatus("Save failed: " + e.message, "error");
         saveBtn.disabled = false;
@@ -301,7 +300,7 @@
         if (nav) {
           saveNav(nav)
             .then(function () {
-              showStatus("Nav updated! Rebuilding...", "success");
+              showStatus("⟳ Nav updated, rebuilding…", "rebuilding", true);
             })
             .catch(function (err) {
               showStatus("Nav save failed: " + err.message, "error");

@@ -202,6 +202,19 @@
     border: 1px solid #f5c6cb;
 }
 
+.liveedit-status.rebuilding {
+    background: #e8f0fe;
+    color: #1a73e8;
+    border: 1px solid #c6dafc;
+    pointer-events: auto;
+    animation: liveedit-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes liveedit-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 /* Hide original block content when editing */
 [data-liveedit-block].liveedit-editing > *:not(.liveedit-overlay):not(.liveedit-icon) {
     visibility: hidden;

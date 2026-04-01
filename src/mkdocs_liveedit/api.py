@@ -61,29 +61,19 @@ class LiveEditAPI:
         return self._json_response(start_response, {"error": msg}, status)
 
     def _trigger_rebuild(self):
-        """Trigger a site rebuild on the LiveReloadServer after a file change."""
+        """Notify the LiveReloadServer's build loop that a rebuild is needed.
+
+        Goes through the server's normal _build_loop mechanism rather than calling
+        builder() directly — this deduplicates with watchdog-triggered rebuilds
+        (which also fire since we just wrote the file) and avoids concurrent builds.
+        """
         server = self.server
         if server is None:
             return
         try:
-            import threading
-
-            def rebuild():
-                try:
-                    log.info("LiveEdit: triggering rebuild...")
-                    server.builder()
-                    # Update the epoch so livereload-connected browsers refresh.
-                    # If livereload JS isn't active, the frontend JS does a manual reload.
-                    import time
-
-                    epoch = time.monotonic_ns()
-                    with server._epoch_cond:
-                        server._visible_epoch = server._wanted_epoch = epoch
-                        server._epoch_cond.notify_all()
-                except Exception as e:
-                    log.error(f"LiveEdit rebuild error: {e}")
-
-            threading.Thread(target=rebuild, daemon=True).start()
+            with server._rebuild_cond:
+                server._want_rebuild = True
+                server._rebuild_cond.notify_all()
         except Exception as e:
             log.error(f"LiveEdit: failed to trigger rebuild: {e}")
 

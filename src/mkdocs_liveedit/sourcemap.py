@@ -42,6 +42,7 @@ def count_frontmatter_offset(raw_file_content: str, page_markdown: str) -> int:
 
 
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
+_TAB_RE = re.compile(r'^=== "[^"]*"\s*$')
 
 
 def parse_blocks(markdown: str) -> list[Block]:
@@ -110,4 +111,41 @@ def parse_blocks(markdown: str) -> list[Block]:
             current_lines.append(line)
 
     flush()
-    return blocks
+    return _merge_tabbed_blocks(blocks, lines)
+
+
+def _merge_tabbed_blocks(blocks: list[Block], lines: list[str]) -> list[Block]:
+    """Merge consecutive blocks forming pymdownx tabbed sets into single blocks.
+
+    Tab sets (=== "Tab Title" + indented content) render as a single HTML element
+    but get split into multiple blocks by blank-line parsing. Merging keeps the
+    block list in 1:1 correspondence with rendered HTML block elements.
+    """
+    if not blocks:
+        return blocks
+
+    merged: list[Block] = []
+    i = 0
+
+    while i < len(blocks):
+        block = blocks[i]
+        if _TAB_RE.match(block.content.split("\n", 1)[0].strip()):
+            # Start of a tab set — absorb subsequent tab headers + indented content
+            start = block.start_line
+            end = block.end_line
+            j = i + 1
+            while j < len(blocks):
+                first_line = blocks[j].content.split("\n", 1)[0]
+                if _TAB_RE.match(first_line.strip()) or first_line.startswith(("    ", "\t")):
+                    end = blocks[j].end_line
+                    j += 1
+                else:
+                    break
+            content = "\n".join(lines[start - 1 : end])
+            merged.append(Block(start_line=start, end_line=end, content=content))
+            i = j
+        else:
+            merged.append(block)
+            i += 1
+
+    return merged
