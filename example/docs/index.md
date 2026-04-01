@@ -2,15 +2,16 @@
 title: Home
 ---
 
-# Welcome to LiveEdit
+# Edited Heading
 
 This is a test site for the mkdocs-liveedit plugin.
 
 ## Features
 
-- Double-click any block to edit it
+- Click the edit button that appears upon hovering on a block
 - Save with Cmd+Enter
 - Changes rebuild automatically via livereload
+
 
 ## Try it out
 
@@ -30,6 +31,11 @@ def hello():
 
 - Item one
 - Item two
-- Item three
 
-> This is a blockquote. You can edit it too!
+1. Thing1
+2. Thing2
+
+1. thing1
+2. thing2
+
+> This is a blockquote

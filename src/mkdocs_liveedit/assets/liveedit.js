@@ -31,7 +31,12 @@
   }
 
   async function fetchSource(file, start, end) {
-    const params = new URLSearchParams({ file: file, start: start, end: end });
+    const params = new URLSearchParams({
+      file: file,
+      start: start,
+      end: end,
+      _t: Date.now(),
+    });
     const resp = await fetch("/liveedit/source?" + params.toString());
     if (!resp.ok) throw new Error("Failed to fetch source: " + resp.status);
     const data = await resp.json();

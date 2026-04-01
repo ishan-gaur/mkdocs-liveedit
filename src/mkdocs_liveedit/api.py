@@ -51,6 +51,8 @@ class LiveEditAPI:
             [
                 ("Content-Type", "application/json"),
                 ("Content-Length", str(len(body))),
+                ("Cache-Control", "no-store, no-cache, must-revalidate"),
+                ("Pragma", "no-cache"),
             ],
         )
         return [body]
