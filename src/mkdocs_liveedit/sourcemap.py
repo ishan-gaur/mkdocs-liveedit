@@ -43,6 +43,12 @@ def count_frontmatter_offset(raw_file_content: str, page_markdown: str) -> int:
 
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
 _TAB_RE = re.compile(r'^=== "[^"]*"\s*$')
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _is_comment_only(block: Block) -> bool:
+    """True if the block contains only HTML comments (no visible content)."""
+    return _HTML_COMMENT_RE.sub("", block.content).strip() == ""
 
 
 def parse_blocks(markdown: str) -> list[Block]:
@@ -111,6 +117,7 @@ def parse_blocks(markdown: str) -> list[Block]:
             current_lines.append(line)
 
     flush()
+    blocks = [b for b in blocks if not _is_comment_only(b)]
     return _merge_tabbed_blocks(blocks, lines)
 
 

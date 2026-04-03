@@ -180,6 +180,43 @@ class TestParseBlocks:
         assert blocks[1].content == "Done"
 
 
+    def test_html_comment_block_excluded(self):
+        """Standalone HTML comments don't produce blocks (no rendered HTML to map to)."""
+        md = "# Title\n\n<!-- TODO: fix this -->\n\nSome text"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0] == Block(start_line=1, end_line=1, content="# Title")
+        assert blocks[1] == Block(start_line=5, end_line=5, content="Some text")
+
+    def test_multiline_html_comment_excluded(self):
+        md = "Before\n\n<!--\nmulti-line\ncomment\n-->\n\nAfter"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].content == "Before"
+        assert blocks[1].content == "After"
+
+    def test_consecutive_html_comments_excluded(self):
+        md = "Before\n\n<!-- comment 1 -->\n<!-- comment 2 -->\n\nAfter"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].content == "Before"
+        assert blocks[1].content == "After"
+
+    def test_inline_html_comment_preserved(self):
+        """Comments mixed with real content should keep the block."""
+        md = "# Title <!-- note -->\n\nText"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].content == "# Title <!-- note -->"
+
+    def test_html_comments_at_end_of_doc(self):
+        md = "# Title\n\nContent\n\n<!-- TODO: something -->\n<!-- TODO: another -->"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].content == "# Title"
+        assert blocks[1].content == "Content"
+
+
 class TestFrontmatterOffset:
     def test_no_frontmatter(self):
         raw = "# Hello\n\nWorld"
