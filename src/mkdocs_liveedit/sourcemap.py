@@ -44,6 +44,8 @@ def count_frontmatter_offset(raw_file_content: str, page_markdown: str) -> int:
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
 _TAB_RE = re.compile(r'^=== "[^"]*"\s*$')
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+_OL_ITEM_RE = re.compile(r"^\s*\d+\.\s")
+_UL_ITEM_RE = re.compile(r"^\s*[-*+]\s")
 
 
 def _is_comment_only(block: Block) -> bool:
@@ -118,7 +120,50 @@ def parse_blocks(markdown: str) -> list[Block]:
 
     flush()
     blocks = [b for b in blocks if not _is_comment_only(b)]
+    blocks = _merge_list_blocks(blocks, lines)
     return _merge_tabbed_blocks(blocks, lines)
+
+
+def _list_type(block: Block) -> str | None:
+    """Return 'ol', 'ul', or None depending on the block's first line."""
+    first_line = block.content.split("\n", 1)[0]
+    if _OL_ITEM_RE.match(first_line):
+        return "ol"
+    if _UL_ITEM_RE.match(first_line):
+        return "ul"
+    return None
+
+
+def _merge_list_blocks(blocks: list[Block], lines: list[str]) -> list[Block]:
+    """Merge consecutive list-item blocks of the same type into single blocks.
+
+    Markdown renderers combine consecutive list items (even separated by blank
+    lines) into a single <ol> or <ul>. We must do the same so the block list
+    stays in 1:1 correspondence with rendered HTML block elements.
+    """
+    if not blocks:
+        return blocks
+
+    merged: list[Block] = []
+    i = 0
+
+    while i < len(blocks):
+        lt = _list_type(blocks[i])
+        if lt is not None:
+            start = blocks[i].start_line
+            end = blocks[i].end_line
+            j = i + 1
+            while j < len(blocks) and _list_type(blocks[j]) == lt:
+                end = blocks[j].end_line
+                j += 1
+            content = "\n".join(lines[start - 1 : end])
+            merged.append(Block(start_line=start, end_line=end, content=content))
+            i = j
+        else:
+            merged.append(blocks[i])
+            i += 1
+
+    return merged
 
 
 def _merge_tabbed_blocks(blocks: list[Block], lines: list[str]) -> list[Block]:

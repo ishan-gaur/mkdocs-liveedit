@@ -180,6 +180,45 @@ class TestParseBlocks:
         assert blocks[1].content == "Done"
 
 
+    def test_ol_items_separated_by_blank_lines_merged(self):
+        """Ordered list items separated by blank lines render as one <ol>."""
+        md = "Intro\n\n1. first\n\n\n2. second\n\nAfter"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 3
+        assert blocks[0].content == "Intro"
+        assert blocks[1].start_line == 3
+        assert blocks[1].end_line == 6
+        assert "1. first" in blocks[1].content
+        assert "2. second" in blocks[1].content
+        assert blocks[2].content == "After"
+
+    def test_ul_items_separated_by_blank_lines_merged(self):
+        """Unordered list items separated by blank lines render as one <ul>."""
+        md = "- apple\n\n- banana\n\n- cherry\n\nDone"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].start_line == 1
+        assert blocks[0].end_line == 5
+        assert "- apple" in blocks[0].content
+        assert "- cherry" in blocks[0].content
+        assert blocks[1].content == "Done"
+
+    def test_mixed_ol_ul_not_merged(self):
+        """An ordered list followed by an unordered list stays separate."""
+        md = "1. ordered\n\n- unordered\n\nEnd"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 3
+        assert blocks[0].content == "1. ordered"
+        assert blocks[1].content == "- unordered"
+        assert blocks[2].content == "End"
+
+    def test_contiguous_list_items_still_one_block(self):
+        """List items without blank lines between them are already one block."""
+        md = "- a\n- b\n- c\n\nEnd"
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0] == Block(start_line=1, end_line=3, content="- a\n- b\n- c")
+
     def test_html_comment_block_excluded(self):
         """Standalone HTML comments don't produce blocks (no rendered HTML to map to)."""
         md = "# Title\n\n<!-- TODO: fix this -->\n\nSome text"
