@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.resources
 import logging
 import os
+import shutil
 from html.parser import HTMLParser
 from typing import TYPE_CHECKING
 
@@ -162,15 +163,29 @@ class LiveEditPlugin(BasePlugin):
     def __init__(self):
         super().__init__()
         self._active = False
+        self._cache_dir: str | None = None
+        self._cache_primed = False
 
     def on_startup(self, *, command: str, dirty: bool) -> None:
         # Only activate during dirty serve — dirty builds only rebuild changed
         # pages, making the edit-save-rebuild cycle fast.  Use: mkdocs serve --dirty
         self._active = command == "serve" and dirty
+        self._cache_primed = False
 
     def on_config(self, config: MkDocsConfig) -> MkDocsConfig:
         if not self._active:
             return config
+
+        # Prime the temp site_dir with cached output so --dirty can skip unchanged pages.
+        # Without this, mkdocs serve's temp dir is always empty and --dirty rebuilds everything.
+        if not self._cache_primed:
+            project_dir = os.path.dirname(config.config_file_path) if config.config_file_path else "."
+            self._cache_dir = os.path.join(project_dir, ".cache", "liveedit", "site")
+            site_dir = config["site_dir"]
+            if os.path.isdir(self._cache_dir):
+                shutil.copytree(self._cache_dir, site_dir, dirs_exist_ok=True, copy_function=shutil.copy2)
+                log.info("LiveEdit: restored cached site for fast dirty build")
+            self._cache_primed = True
 
         # Patch the LiveReloadServer class to intercept /liveedit/* routes.
         # Done in on_config (runs before the server is created) so the patch
@@ -180,6 +195,17 @@ class LiveEditPlugin(BasePlugin):
         _patch_livereload_server(docs_dir, config_file)
 
         return config
+
+    def on_post_build(self, *, config: MkDocsConfig) -> None:
+        if not self._active or not self._cache_dir:
+            return
+        # Save built site to cache for next session's fast startup
+        site_dir = config["site_dir"]
+        if os.path.isdir(site_dir):
+            if os.path.isdir(self._cache_dir):
+                shutil.rmtree(self._cache_dir)
+            shutil.copytree(site_dir, self._cache_dir, copy_function=shutil.copy2)
+            log.info("LiveEdit: cached built site for next session")
 
     def on_page_markdown(self, markdown: str, *, page: Page, config: MkDocsConfig, files) -> str:
         if not self._active:
