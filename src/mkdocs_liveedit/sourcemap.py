@@ -102,6 +102,8 @@ def parse_blocks(markdown: str) -> list[Block]:
             elif char == fence_char and count >= fence_count:
                 in_fence = False
                 current_lines.append(line)
+                # Flush after fence close so the next non-blank line starts a new block
+                flush()
                 continue
 
         if in_fence:

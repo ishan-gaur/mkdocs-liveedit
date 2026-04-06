@@ -179,6 +179,34 @@ class TestParseBlocks:
         assert blocks[0].end_line == 12
         assert blocks[1].content == "Done"
 
+    def test_tabbed_fence_close_no_blank_before_next_content(self):
+        """Content immediately after a tab's closing fence isn't absorbed into the tab block."""
+        md = (
+            '=== "Tab 1"\n'
+            "\n"
+            "    ```python\n"
+            "    x = 1\n"
+            "    ```\n"
+            "\n"
+            '=== "Tab 2"\n'
+            "\n"
+            "    ```python\n"
+            "    y = 2\n"
+            "    ```\n"           # line 11 — fence close, no blank line follows
+            "Attribution line\n"  # line 12 — should NOT be in the tab block
+            "\n"
+            "## Next Section"     # line 14
+        )
+        blocks = parse_blocks(md)
+        assert len(blocks) == 3
+        # Tab block ends at fence close (line 11), not at attribution
+        assert blocks[0].start_line == 1
+        assert blocks[0].end_line == 11
+        # Attribution is its own block
+        assert blocks[1].start_line == 12
+        assert blocks[1].content == "Attribution line"
+        # Heading is separate
+        assert blocks[2].content == "## Next Section"
 
     def test_ol_items_separated_by_blank_lines_merged(self):
         """Ordered list items separated by blank lines render as one <ol>."""
