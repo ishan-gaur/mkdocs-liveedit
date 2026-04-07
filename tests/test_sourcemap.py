@@ -192,10 +192,10 @@ class TestParseBlocks:
             "\n"
             "    ```python\n"
             "    y = 2\n"
-            "    ```\n"           # line 11 — fence close, no blank line follows
+            "    ```\n"  # line 11 — fence close, no blank line follows
             "Attribution line\n"  # line 12 — should NOT be in the tab block
             "\n"
-            "## Next Section"     # line 14
+            "## Next Section"  # line 14
         )
         blocks = parse_blocks(md)
         assert len(blocks) == 3

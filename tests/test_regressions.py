@@ -392,7 +392,139 @@ class TestRegression_FenceCloseNoFlush:
 
 
 # ---------------------------------------------------------------------------
-# Regression 5: Frontmatter offset with various patterns
+# Regression 5: Admonition splitting (2026-04-06, setup.md)
+#
+# Admonitions (!!! type / ??? type) render as a single HTML element (<div> or
+# <details>) but their indented content was split into multiple blocks by
+# blank-line parsing and fence-close flushing. The _BlockAnnotator then mapped
+# block N to the <details>, blocks N+1..N+3 to subsequent HTML elements,
+# shifting everything after.
+#
+# Real-world: ??? note "Installing Claude Code" in dfm/docs/setup.md contained
+# indented code, text, and nested tab sets — split into 4 blocks but rendered
+# as one <details>.
+# ---------------------------------------------------------------------------
+
+
+class TestRegression_AdmonitionSplitting:
+    """Admonitions must merge into a single block to match single HTML element."""
+
+    def test_collapsible_admonition_with_code_block(self):
+        """??? note with indented code block: fence-close flush split the code out."""
+        md = (
+            '??? note "Setup"\n'
+            "\n"
+            "    ```bash\n"
+            "    npm install foo\n"
+            "    ```\n"
+            "\n"
+            "    Then verify:\n"
+            "\n"
+            "    ```bash\n"
+            "    foo --version\n"
+            "    ```\n"
+            "\n"
+            "Next section."
+        )
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2, f"Expected 2 blocks (admonition + paragraph), got {len(blocks)}"
+        assert blocks[0].start_line == 1
+        assert blocks[0].end_line == 11  # whole admonition
+        assert '??? note "Setup"' in blocks[0].content
+        assert "foo --version" in blocks[0].content
+        assert blocks[1].content == "Next section."
+
+    def test_admonition_with_nested_tabs(self):
+        """Real-world pattern: ??? note containing indented tab set."""
+        md = (
+            '??? note "Installing Claude Code"\n'
+            "\n"
+            "    ```bash\n"
+            "    npm install -g @anthropic-ai/claude-code\n"
+            "    ```\n"
+            "\n"
+            "    This requires Node.js >= 18.\n"
+            "\n"
+            '    === "macOS"\n'
+            "\n"
+            "        ```bash\n"
+            "        brew install node\n"
+            "        ```\n"
+            "\n"
+            '    === "Linux"\n'
+            "\n"
+            "        ```bash\n"
+            "        apt install nodejs\n"
+            "        ```\n"
+            "\n"
+            "After the admonition."
+        )
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].start_line == 1
+        assert blocks[0].end_line == 19
+        assert '??? note "Installing Claude Code"' in blocks[0].content
+        assert '=== "Linux"' in blocks[0].content
+        assert blocks[1].content == "After the admonition."
+
+    def test_standard_admonition_with_multiple_paragraphs(self):
+        """!!! tip with multiple indented paragraphs separated by blank lines."""
+        md = (
+            '!!! tip "Requirements"\n'
+            "    **Python 3.12** is required.\n"
+            "\n"
+            "    **GPU (CUDA)** is recommended.\n"
+            "\n"
+            "### Next heading"
+        )
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].start_line == 1
+        assert blocks[0].end_line == 4
+        assert "Python 3.12" in blocks[0].content
+        assert "GPU (CUDA)" in blocks[0].content
+        assert blocks[1].content == "### Next heading"
+
+    def test_admonition_full_pipeline(self):
+        """Full pipeline: admonition blocks get correct line mapping in HTML."""
+        md = "# Title\n\n!!! warning\n    Be careful.\n\n    Very careful.\n\nParagraph after."
+        html = (
+            "<h1>Title</h1>\n"
+            '<div class="admonition warning">\n'
+            '<p class="admonition-title">Warning</p>\n'
+            "<p>Be careful.</p>\n"
+            "<p>Very careful.</p>\n"
+            "</div>\n"
+            "<p>Paragraph after.</p>"
+        )
+        annotated = annotate(md, html)
+        attrs = extract_liveedit_attrs(annotated)
+        assert len(attrs) == 3
+        assert attrs[0]["start_line"] == 1  # h1
+        assert attrs[1]["start_line"] == 3  # admonition (merged)
+        assert attrs[1]["end_line"] == 6  # includes "Very careful."
+        assert attrs[2]["start_line"] == 8  # paragraph after
+
+    def test_open_admonition(self):
+        """???+ (open collapsible) also merges."""
+        md = '???+ note "Open by default"\n\n    Content here.\n\nAfter.'
+        blocks = parse_blocks(md)
+        assert len(blocks) == 2
+        assert blocks[0].end_line == 3
+        assert blocks[1].content == "After."
+
+    def test_consecutive_admonitions_stay_separate(self):
+        """Two admonitions back-to-back should produce two separate blocks."""
+        md = "!!! note\n    First note.\n\n!!! warning\n    Second warning.\n\nDone."
+        blocks = parse_blocks(md)
+        assert len(blocks) == 3
+        assert "First note." in blocks[0].content
+        assert "Second warning." in blocks[1].content
+        assert blocks[2].content == "Done."
+
+
+# ---------------------------------------------------------------------------
+# Regression 6: Frontmatter offset with various patterns
 #
 # The frontmatter offset calculation must handle edge cases: YAML with
 # multi-line values, blank lines after frontmatter, no frontmatter at all.
@@ -779,17 +911,13 @@ class TestRegression_BlockAnnotator:
         # Only h1 and top-level div should be annotated (depth=0)
         assert len(attrs) == 2
 
-    def test_hr_element_depth_desync(self):
-        """KNOWN BUG: <hr> (void element) increments depth but never decrements it.
+    def test_hr_void_element_doesnt_break_depth(self):
+        """<hr> is a void element — must not increment depth or subsequent blocks are lost.
 
-        HTMLParser calls handle_starttag for <hr> but never handle_endtag (no </hr>).
-        Since _BlockAnnotator uses depth to skip nested elements, <hr> permanently
-        increments depth, making all subsequent block elements appear "nested" and
-        unannotated. This means pages with <hr> (markdown ---) will have broken
-        editing for everything after the <hr>.
-
-        This test documents the current (broken) behavior. When the bug is fixed,
-        update this test to assert len(attrs) == 3.
+        Previously, HTMLParser called handle_starttag for <hr> but never handle_endtag
+        (no </hr>), permanently incrementing depth and making all subsequent block
+        elements appear "nested" and unannotated. Fixed by skipping depth increment
+        for void elements.
         """
         md = "Paragraph\n\n---\n\nAnother paragraph"
         blocks = parse_blocks(md)
@@ -797,9 +925,10 @@ class TestRegression_BlockAnnotator:
         annotator = _BlockAnnotator(blocks, "test.md", 0)
         result = annotator.feed_and_annotate(html)
         attrs = extract_liveedit_attrs(result)
-        # BUG: only 2 annotated (p + hr), the second p is missed because depth=1
-        # after <hr> (void element with no closing tag)
-        assert len(attrs) == 2  # TODO: should be 3 when void element handling is fixed
+        assert len(attrs) == 3
+        assert attrs[0]["start_line"] == 1
+        assert attrs[1]["start_line"] == 3  # hr
+        assert attrs[2]["start_line"] == 5  # paragraph after hr
 
     def test_more_html_elements_than_blocks(self):
         """If HTML has more block elements than parsed blocks, extras are left alone."""

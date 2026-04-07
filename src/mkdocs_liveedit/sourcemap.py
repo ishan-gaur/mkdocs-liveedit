@@ -43,6 +43,7 @@ def count_frontmatter_offset(raw_file_content: str, page_markdown: str) -> int:
 
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
 _TAB_RE = re.compile(r'^=== "[^"]*"\s*$')
+_ADMONITION_RE = re.compile(r"^(!{3}|[?]{3})\+?\s+\w+")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _OL_ITEM_RE = re.compile(r"^\s*\d+\.\s")
 _UL_ITEM_RE = re.compile(r"^\s*[-*+]\s")
@@ -123,6 +124,7 @@ def parse_blocks(markdown: str) -> list[Block]:
     flush()
     blocks = [b for b in blocks if not _is_comment_only(b)]
     blocks = _merge_list_blocks(blocks, lines)
+    blocks = _merge_admonition_blocks(blocks, lines)
     return _merge_tabbed_blocks(blocks, lines)
 
 
@@ -163,6 +165,45 @@ def _merge_list_blocks(blocks: list[Block], lines: list[str]) -> list[Block]:
             i = j
         else:
             merged.append(blocks[i])
+            i += 1
+
+    return merged
+
+
+def _merge_admonition_blocks(blocks: list[Block], lines: list[str]) -> list[Block]:
+    """Merge admonition header blocks with their indented content blocks.
+
+    Admonitions (!!! type / ??? type) render as a single HTML element (<div> or
+    <details>) but their indented content gets split into multiple blocks by
+    blank-line parsing and fence-close flushing. Merging keeps the block list
+    in 1:1 correspondence with rendered HTML block elements.
+    """
+    if not blocks:
+        return blocks
+
+    merged: list[Block] = []
+    i = 0
+
+    while i < len(blocks):
+        block = blocks[i]
+        first_line = block.content.split("\n", 1)[0]
+        if _ADMONITION_RE.match(first_line):
+            # Start of an admonition — absorb subsequent indented content blocks
+            start = block.start_line
+            end = block.end_line
+            j = i + 1
+            while j < len(blocks):
+                next_first = blocks[j].content.split("\n", 1)[0]
+                if next_first.startswith(("    ", "\t")):
+                    end = blocks[j].end_line
+                    j += 1
+                else:
+                    break
+            content = "\n".join(lines[start - 1 : end])
+            merged.append(Block(start_line=start, end_line=end, content=content))
+            i = j
+        else:
+            merged.append(block)
             i += 1
 
     return merged

@@ -42,6 +42,12 @@ BLOCK_TAGS = frozenset(
     }
 )
 
+# HTML void elements — no closing tag, so HTMLParser never calls handle_endtag.
+# We must not increment depth for these or subsequent siblings appear "nested".
+_VOID_ELEMENTS = frozenset(
+    {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+)
+
 
 class _BlockAnnotator(HTMLParser):
     """Walk HTML and annotate top-level block elements with liveedit data attributes."""
@@ -99,7 +105,9 @@ class _BlockAnnotator(HTMLParser):
             self._pos = tag_end + 1
             self.block_index += 1
 
-        if tag in BLOCK_TAGS:
+        # Void elements (hr, br, img, etc.) have no closing tag — HTMLParser never
+        # calls handle_endtag for them. Don't increment depth or it stays stuck.
+        if tag in BLOCK_TAGS and tag not in _VOID_ELEMENTS:
             self.depth += 1
 
     def handle_endtag(self, tag: str):
